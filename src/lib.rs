@@ -37,10 +37,24 @@ pub struct DirLock<'a>(&'a Path);
 
 #[derive(Debug, From)]
 pub enum Error {
+    #[from(ignore)]
+    Cloned(String, String),
     HeimProcess(heim::process::ProcessError),
     #[from(ignore)]
     Io(io::Error, Option<PathBuf>),
     ParseInt(ParseIntError)
+}
+
+impl Clone for Error {
+    fn clone(&self) -> Error {
+        match *self {
+            Error::Cloned(ref display, ref debug) => Error::Cloned(display.clone(), debug.clone()),
+            Error::HeimProcess(ref e) => Error::Cloned(format!("heim process error: {}", e), format!("{:?}", e)),
+            Error::Io(ref e, Some(ref path)) => Error::Cloned(format!("I/O error at {}: {}", path.display(), e), format!("{:?}", e)),
+            Error::Io(ref e, None) => Error::Cloned(format!("I/O error: {}", e), format!("{:?}", e)),
+            Error::ParseInt(ref e) => Error::ParseInt(e.clone())
+        }
+    }
 }
 
 trait IoResultExt {
