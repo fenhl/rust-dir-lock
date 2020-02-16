@@ -2,6 +2,7 @@
 
 use {
     std::{
+        fmt,
         fs::File as SyncFile,
         io::{
             self,
@@ -53,6 +54,18 @@ impl Clone for Error {
             Error::Io(ref e, Some(ref path)) => Error::Cloned(format!("I/O error at {}: {}", path.display(), e), format!("{:?}", e)),
             Error::Io(ref e, None) => Error::Cloned(format!("I/O error: {}", e), format!("{:?}", e)),
             Error::ParseInt(ref e) => Error::ParseInt(e.clone())
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Cloned(display, _) => display.fmt(f),
+            Error::HeimProcess(e) => write!(f, "heim process error: {}", e),
+            Error::Io(e, Some(path)) => write!(f, "I/O error at {}: {}", path.display(), e),
+            Error::Io(e, None) => write!(f, "I/O error: {}", e),
+            Error::ParseInt(e) => e.fmt(f)
         }
     }
 }
