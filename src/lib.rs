@@ -43,7 +43,7 @@ pub enum Error {
     ParseInt(ParseIntError)
 }
 
-pub trait IoResultExt {
+trait IoResultExt {
     type T;
 
     fn at(self, path: impl AsRef<Path>) -> Self::T;

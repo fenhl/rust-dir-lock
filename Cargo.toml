@@ -1,6 +1,6 @@
 [package]
 name = "dir-lock"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["Fenhl <fenhl@fenhl.net>"]
 edition = "2018"
 description = "A simple file-system-based mutex"
