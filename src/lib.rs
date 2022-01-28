@@ -17,7 +17,6 @@
 
 use {
     std::{
-        fmt,
         fs::File as SyncFile,
         future::Future,
         io::{
@@ -35,8 +34,8 @@ use {
         thread,
         time::Duration,
     },
-    derive_more::From,
     heim::process::pid_exists,
+    thiserror::Error,
 };
 #[cfg(feature = "async-std")] use async_std::{
     fs::{
@@ -81,29 +80,17 @@ use {
 pub struct DirLock<'a>(&'a Path);
 
 /// An error that can occur when locking or unlocking a [`DirLock`].
-#[derive(Debug, From, Clone)]
+#[derive(Debug, Error, Clone)]
 #[allow(missing_docs)]
 pub enum Error {
-    HeimProcess(Arc<heim::process::ProcessError>),
-    Io(Arc<io::Error>, Option<PathBuf>),
-    #[from]
-    ParseInt(ParseIntError),
+    #[error("heim process error: {0}")] HeimProcess(#[source] Arc<heim::process::ProcessError>),
+    #[error("I/O error{}: {0}", if let Some(path) = .1 { format!(" at {}", path.display()) } else { String::default() })] Io(#[source] Arc<io::Error>, Option<PathBuf>),
+    #[error(transparent)] ParseInt(#[from] ParseIntError),
 }
 
 impl From<heim::process::ProcessError> for Error {
     fn from(e: heim::process::ProcessError) -> Error {
         Error::HeimProcess(Arc::new(e))
-    }
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::HeimProcess(e) => write!(f, "heim process error: {}", e),
-            Error::Io(e, Some(path)) => write!(f, "I/O error at {}: {}", path.display(), e),
-            Error::Io(e, None) => write!(f, "I/O error: {}", e),
-            Error::ParseInt(e) => e.fmt(f),
-        }
     }
 }
 
