@@ -13,12 +13,10 @@
 //! * `tokio03`: Uses the runtime of [the outdated version 0.3 of the `tokio` crate](https://docs.rs/tokio/0.3) for async operations. The `tokio` feature should be disabled when using this feature.
 
 #![deny(missing_docs, rust_2018_idioms, unused, unused_crate_dependencies, unused_import_braces, unused_qualifications, warnings)]
-#![forbid(unsafe_code)]
 
 use {
     std::{
         fs::File as SyncFile,
-        future::Future,
         io::{
             self,
             Read as _,
@@ -34,8 +32,8 @@ use {
         thread,
         time::Duration,
     },
-    heim::process::pid_exists,
     thiserror::Error,
+    crate::process::pid_exists,
 };
 #[cfg(feature = "async-std")] use async_std::{
     fs::{
@@ -43,10 +41,7 @@ use {
         File,
     },
     io::prelude::*,
-    task::{
-        block_on,
-        sleep,
-    },
+    task::sleep,
 };
 #[cfg(feature = "tokio02")] use tokio02::{
     self as tokio,
@@ -61,6 +56,8 @@ use {
     io::AsyncReadExt as _,
 };
 #[cfg(any(feature = "tokio", feature = "tokio03"))] use tokio::time::sleep;
+
+mod process;
 
 /// A simple file-system-based mutex.
 ///
@@ -83,15 +80,8 @@ pub struct DirLock<'a>(&'a Path);
 #[derive(Debug, Error, Clone)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[error("heim process error: {0}")] HeimProcess(#[source] Arc<heim::process::ProcessError>),
     #[error("I/O error{}: {0}", if let Some(path) = .1 { format!(" at {}", path.display()) } else { String::default() })] Io(#[source] Arc<io::Error>, Option<PathBuf>),
     #[error(transparent)] ParseInt(#[from] ParseIntError),
-}
-
-impl From<heim::process::ProcessError> for Error {
-    fn from(e: heim::process::ProcessError) -> Error {
-        Error::HeimProcess(Arc::new(e))
-    }
 }
 
 trait IoResultExt {
@@ -145,7 +135,7 @@ impl DirLock<'_> {
                                 let mut buf = String::default();
                                 f.read_to_string(&mut buf).await.at(path.join("pid"))?;
                                 !buf.is_empty() // assume pidfile is still being written if empty //TODO check timestamp
-                                && !pid_exists(buf.trim().parse()?).await?
+                                && !pid_exists(buf.trim().parse()?)?
                             }
                             Err(e) => if e.kind() == io::ErrorKind::NotFound {
                                 false
@@ -181,7 +171,7 @@ impl DirLock<'_> {
                                 let mut buf = String::default();
                                 f.read_to_string(&mut buf).at(path.join("pid"))?;
                                 !buf.is_empty() // assume pidfile is still being written if empty //TODO check timestamp
-                                && !block_on(pid_exists(buf.trim().parse()?))?
+                                && !pid_exists(buf.trim().parse()?)?
                             }
                             Err(e) => if e.kind() == io::ErrorKind::NotFound {
                                 false
@@ -246,10 +236,4 @@ impl Drop for DirLock<'_> {
     fn drop(&mut self) {
         self.clean_up_sync().expect("failed to clean up dir lock");
     }
-}
-
-#[cfg(any(feature = "tokio", feature = "tokio02", feature = "tokio03"))]
-fn block_on<T, E, F: Future<Output = Result<T, E>>>(fut: F) -> Result<T, Error>
-where Error: From<E> {
-    Ok(tokio::runtime::Runtime::new().at_unknown()?.block_on(fut)?)
 }
