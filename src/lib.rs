@@ -74,7 +74,7 @@ mod process;
 ///
 /// This type is a RAII lock guard, but unlocking a directory lock uses I/O and can error, so it is recommended to call [`drop_async`](Self::drop_async).
 #[must_use = "should call the drop_async method to unlock"]
-pub struct DirLock<'a>(&'a Path);
+pub struct DirLock(PathBuf);
 
 /// An error that can occur when locking or unlocking a [`DirLock`].
 #[derive(Debug, Error, Clone)]
@@ -115,18 +115,18 @@ impl<T, E: IoResultExt> IoResultExt for Result<T, E> {
     }
 }
 
-impl DirLock<'_> {
+impl DirLock {
     /// Acquires a directory lock at the given path, without blocking the thread.
     ///
     /// See the type-level docs for details.
-    pub async fn new(path: &impl AsRef<Path>) -> Result<DirLock<'_>, Error> {
-        let path = path.as_ref();
+    pub async fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
+        let path = path.as_ref().to_owned();
         loop {
-            match fs::create_dir(path).await {
+            match fs::create_dir(&path).await {
                 Ok(()) => {
                     let pidfile = path.join("pid");
                     writeln!(SyncFile::create(&pidfile).at(&pidfile)?, "{}", std::process::id()).at(pidfile)?; //TODO replace SyncFile with File once format_args! is Sync
-                    return Ok(DirLock(path));
+                    return Ok(Self(path))
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::AlreadyExists => {
@@ -140,29 +140,29 @@ impl DirLock<'_> {
                             Err(e) => if e.kind() == io::ErrorKind::NotFound {
                                 false
                             } else {
-                                return Err(e.at(path.join("pid")));
+                                return Err(e.at(path.join("pid")))
                             },
                         } {
-                            DirLock(path).clean_up().await?;
+                            clean_up_path(&path).await?;
                         }
                         sleep(Duration::from_secs(1)).await;
-                        continue;
+                        continue
                     }
-                    _ => { return Err(e.at(path)); }
+                    _ => return Err(e.at(path)),
                 },
             }
         }
     }
 
     /// Blocks the current thread until the lock can be established.
-    pub fn new_sync(path: &impl AsRef<Path>) -> Result<DirLock<'_>, Error> {
-        let path = path.as_ref();
+    pub fn new_sync(path: &impl AsRef<Path>) -> Result<Self, Error> {
+        let path = path.as_ref().to_owned();
         loop {
-            match std::fs::create_dir(path) {
+            match std::fs::create_dir(&path) {
                 Ok(()) => {
                     let pidfile = path.join("pid");
                     writeln!(SyncFile::create(&pidfile).at(&pidfile)?, "{}", std::process::id()).at(pidfile)?;
-                    return Ok(DirLock(path));
+                    return Ok(Self(path))
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::AlreadyExists => {
@@ -176,15 +176,15 @@ impl DirLock<'_> {
                             Err(e) => if e.kind() == io::ErrorKind::NotFound {
                                 false
                             } else {
-                                return Err(e.at(path.join("pid")));
+                                return Err(e.at(path.join("pid")))
                             },
                         } {
-                            DirLock(path).clean_up_sync()?;
+                            clean_up_path_sync(&path)?;
                         }
                         thread::sleep(Duration::from_secs(1));
-                        continue;
+                        continue
                     }
-                    _ => { return Err(e.at(path)); }
+                    _ => return Err(e.at(path)),
                 },
             }
         }
@@ -198,35 +198,15 @@ impl DirLock<'_> {
     }
 
     async fn clean_up(&self) -> Result<(), Error> {
-        if let Err(e) = fs::remove_file(self.0.join("pid")).await {
-            if e.kind() != io::ErrorKind::NotFound {
-                return Err(e.at(self.0.join("pid")));
-            }
-        }
-        if let Err(e) = fs::remove_dir(self.0).await {
-            if e.kind() != io::ErrorKind::NotFound {
-                return Err(e.at(self.0));
-            }
-        }
-        Ok(())
+        clean_up_path(&self.0).await
     }
 
     fn clean_up_sync(&self) -> Result<(), Error> {
-        if let Err(e) = std::fs::remove_file(self.0.join("pid")) {
-            if e.kind() != io::ErrorKind::NotFound {
-                return Err(e.at(self.0.join("pid")));
-            }
-        }
-        if let Err(e) = std::fs::remove_dir(self.0) {
-            if e.kind() != io::ErrorKind::NotFound {
-                return Err(e.at(self.0));
-            }
-        }
-        Ok(())
+        clean_up_path_sync(&self.0)
     }
 }
 
-impl Drop for DirLock<'_> {
+impl Drop for DirLock {
     /// Unlocks this lock, blocking the current thread while doing so.
     ///
     /// # Panics
@@ -236,4 +216,32 @@ impl Drop for DirLock<'_> {
     fn drop(&mut self) {
         self.clean_up_sync().expect("failed to clean up dir lock");
     }
+}
+
+async fn clean_up_path(path: &Path) -> Result<(), Error> {
+    if let Err(e) = fs::remove_file(path.join("pid")).await {
+        if e.kind() != io::ErrorKind::NotFound {
+            return Err(e.at(path.join("pid")));
+        }
+    }
+    if let Err(e) = fs::remove_dir(path).await {
+        if e.kind() != io::ErrorKind::NotFound {
+            return Err(e.at(path))
+        }
+    }
+    Ok(())
+}
+
+fn clean_up_path_sync(path: &Path) -> Result<(), Error> {
+    if let Err(e) = std::fs::remove_file(path.join("pid")) {
+        if e.kind() != io::ErrorKind::NotFound {
+            return Err(e.at(path.join("pid")))
+        }
+    }
+    if let Err(e) = std::fs::remove_dir(path) {
+        if e.kind() != io::ErrorKind::NotFound {
+            return Err(e.at(path))
+        }
+    }
+    Ok(())
 }
