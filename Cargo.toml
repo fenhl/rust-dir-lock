@@ -2,7 +2,7 @@
 name = "dir-lock"
 version = "0.4.0"
 authors = ["Fenhl <fenhl@fenhl.net>"]
-edition = "2018"
+edition = "2021"
 description = "A simple file-system-based mutex"
 license = "MIT"
 readme = "README.md"
