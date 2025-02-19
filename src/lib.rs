@@ -9,8 +9,6 @@
 //! The following features can be enabled via Cargo:
 //!
 //! * `async-std`: Uses the [`async-std`](https://docs.rs/async-std) runtime for async operations. The `tokio` feature should be disabled when using this feature.
-//! * `tokio02`: Uses the runtime of [the outdated version 0.2 of the `tokio` crate](https://docs.rs/tokio/0.2) for async operations. The `tokio` feature should be disabled when using this feature.
-//! * `tokio03`: Uses the runtime of [the outdated version 0.3 of the `tokio` crate](https://docs.rs/tokio/0.3) for async operations. The `tokio` feature should be disabled when using this feature.
 
 #![deny(missing_docs, rust_2018_idioms, unused, unused_crate_dependencies, unused_import_braces, unused_qualifications, warnings)]
 
@@ -43,19 +41,14 @@ use {
     io::prelude::*,
     task::sleep,
 };
-#[cfg(feature = "tokio02")] use tokio02::{
-    self as tokio,
-    time::delay_for as sleep,
-};
-#[cfg(feature = "tokio03")] use tokio03 as tokio;
-#[cfg(any(feature = "tokio", feature = "tokio02", feature = "tokio03"))] use tokio::{
+#[cfg(feature = "tokio")] use tokio::{
     fs::{
         self,
         File,
     },
     io::AsyncReadExt as _,
+    time::sleep,
 };
-#[cfg(any(feature = "tokio", feature = "tokio03"))] use tokio::time::sleep;
 
 mod process;
 
@@ -88,7 +81,7 @@ trait IoResultExt {
     type T;
 
     fn at(self, path: impl AsRef<Path>) -> Self::T;
-    fn at_unknown(self) -> Self::T;
+    #[cfg(windows)] fn at_unknown(self) -> Self::T;
 }
 
 impl IoResultExt for io::Error {
@@ -98,6 +91,7 @@ impl IoResultExt for io::Error {
         Error::Io(Arc::new(self), Some(path.as_ref().to_owned()))
     }
 
+    #[cfg(windows)]
     fn at_unknown(self) -> Error {
         Error::Io(Arc::new(self), None)
     }
@@ -110,6 +104,7 @@ impl<T, E: IoResultExt> IoResultExt for Result<T, E> {
         self.map_err(|e| e.at(path))
     }
 
+    #[cfg(windows)]
     fn at_unknown(self) -> Result<T, E::T> {
         self.map_err(|e| e.at_unknown())
     }

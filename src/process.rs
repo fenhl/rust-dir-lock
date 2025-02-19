@@ -25,6 +25,8 @@
 // IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 // DEALINGS IN THE SOFTWARE.
 
+#![allow(unused_qualifications)]
+
 use {
     std::io,
     crate::Error,
