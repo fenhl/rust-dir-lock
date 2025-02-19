@@ -49,6 +49,7 @@ use {
 ///
 /// To guard against processes exiting without properly removing the lock, a file containing the current process ID is created inside the lock.
 /// If no process with that ID exists, another process may claim the lock for itself.
+/// If the file does not exist, the constructor waits until it does (or until the directory is removed).
 ///
 /// Of course, this is still not completely fail-proof since the user or other processes could mess with the lock directory.
 ///
