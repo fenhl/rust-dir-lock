@@ -61,7 +61,7 @@ pub struct DirLock(PathBuf);
 #[derive(Debug, Error, Clone)]
 #[allow(missing_docs)]
 pub enum Error {
-    #[error("I/O error{}: {0}", if let Some(path) = .1 { format!(" at {}", path.display()) } else { String::default() })] Io(#[source] Arc<io::Error>, Option<PathBuf>),
+    #[error("I/O error{}: {}", if let Some(path) = .1 { format!(" at {}", path.display()) } else { String::default() }, .0)] Io(#[source] Arc<io::Error>, Option<PathBuf>),
     #[error(transparent)] ParseInt(#[from] ParseIntError),
 }
 
