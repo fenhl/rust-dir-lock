@@ -30,8 +30,12 @@ use {
         thread,
         time::Duration,
     },
+    sysinfo::{
+        Pid,
+        ProcessRefreshKind,
+        ProcessesToUpdate,
+    },
     thiserror::Error,
-    crate::process::pid_exists,
 };
 #[cfg(feature = "async-std")] use async_std::{
     fs::{
@@ -49,8 +53,6 @@ use {
     io::AsyncReadExt as _,
     time::sleep,
 };
-
-mod process;
 
 /// A simple file-system-based mutex.
 ///
@@ -81,7 +83,6 @@ trait IoResultExt {
     type T;
 
     fn at(self, path: impl AsRef<Path>) -> Self::T;
-    #[cfg(windows)] fn at_unknown(self) -> Self::T;
 }
 
 impl IoResultExt for io::Error {
@@ -90,11 +91,6 @@ impl IoResultExt for io::Error {
     fn at(self, path: impl AsRef<Path>) -> Error {
         Error::Io(Arc::new(self), Some(path.as_ref().to_owned()))
     }
-
-    #[cfg(windows)]
-    fn at_unknown(self) -> Error {
-        Error::Io(Arc::new(self), None)
-    }
 }
 
 impl<T, E: IoResultExt> IoResultExt for Result<T, E> {
@@ -102,11 +98,6 @@ impl<T, E: IoResultExt> IoResultExt for Result<T, E> {
 
     fn at(self, path: impl AsRef<Path>) -> Result<T, E::T> {
         self.map_err(|e| e.at(path))
-    }
-
-    #[cfg(windows)]
-    fn at_unknown(self) -> Result<T, E::T> {
-        self.map_err(|e| e.at_unknown())
     }
 }
 
@@ -125,12 +116,13 @@ impl DirLock {
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::AlreadyExists => {
-                        if match File::open(path.join("pid")).await {
+                        let pidfile = path.join("pid");
+                        if match File::open(&pidfile).await {
                             Ok(mut f) => {
                                 let mut buf = String::default();
-                                f.read_to_string(&mut buf).await.at(path.join("pid"))?;
+                                f.read_to_string(&mut buf).await.at(pidfile)?;
                                 !buf.is_empty() // assume pidfile is still being written if empty //TODO check timestamp
-                                && !pid_exists(buf.trim().parse()?)?
+                                && !pid_exists(buf.trim().parse()?)
                             }
                             Err(e) => if e.kind() == io::ErrorKind::NotFound {
                                 false
@@ -161,12 +153,13 @@ impl DirLock {
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::AlreadyExists => {
-                        if match SyncFile::open(path.join("pid")) {
+                        let pidfile = path.join("pid");
+                        if match SyncFile::open(&pidfile) {
                             Ok(mut f) => {
                                 let mut buf = String::default();
-                                f.read_to_string(&mut buf).at(path.join("pid"))?;
+                                f.read_to_string(&mut buf).at(pidfile)?;
                                 !buf.is_empty() // assume pidfile is still being written if empty //TODO check timestamp
-                                && !pid_exists(buf.trim().parse()?)?
+                                && !pid_exists(buf.trim().parse()?)
                             }
                             Err(e) => if e.kind() == io::ErrorKind::NotFound {
                                 false
@@ -239,4 +232,9 @@ fn clean_up_path_sync(path: &Path) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+fn pid_exists(pid: Pid) -> bool {
+    let mut system = sysinfo::System::default();
+    system.refresh_processes_specifics(ProcessesToUpdate::Some(&[pid]), true, ProcessRefreshKind::default()) > 0
 }

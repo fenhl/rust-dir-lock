@@ -12,6 +12,7 @@ repository = "https://github.com/fenhl/rust-dir-lock"
 default = ["tokio"]
 
 [dependencies]
+sysinfo = { version = "0.33.1", default-features = false, features = ["system"] }
 thiserror = "1"
 
 [dependencies.async-std]
@@ -22,11 +23,3 @@ optional = true
 version = "1"
 optional = true
 features = ["fs", "io-util", "rt-multi-thread", "time"]
-
-[target.'cfg(unix)'.dependencies]
-libc = "0.2"
-
-[target.'cfg(windows)'.dependencies.winapi]
-version = ">=0.3.8"
-default-features = false
-features = ["minwindef", "processthreadsapi", "psapi", "winerror"]
