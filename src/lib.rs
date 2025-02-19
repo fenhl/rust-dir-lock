@@ -14,12 +14,7 @@
 
 use {
     std::{
-        fs::File as SyncFile,
-        io::{
-            self,
-            Read as _,
-            Write as _,
-        },
+        io,
         mem::forget,
         num::ParseIntError,
         path::{
@@ -38,19 +33,11 @@ use {
     thiserror::Error,
 };
 #[cfg(feature = "async-std")] use async_std::{
-    fs::{
-        self,
-        File,
-    },
-    io::prelude::*,
+    fs,
     task::sleep,
 };
 #[cfg(feature = "tokio")] use tokio::{
-    fs::{
-        self,
-        File,
-    },
-    io::AsyncReadExt as _,
+    fs,
     time::sleep,
 };
 
@@ -111,16 +98,14 @@ impl DirLock {
             match fs::create_dir(&path).await {
                 Ok(()) => {
                     let pidfile = path.join("pid");
-                    writeln!(SyncFile::create(&pidfile).at(&pidfile)?, "{}", std::process::id()).at(pidfile)?; //TODO replace SyncFile with File once format_args! is Sync
+                    fs::write(&pidfile, format!("{}\n", std::process::id())).await.at(pidfile)?;
                     return Ok(Self(path))
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::AlreadyExists => {
                         let pidfile = path.join("pid");
-                        if match File::open(&pidfile).await {
-                            Ok(mut f) => {
-                                let mut buf = String::default();
-                                f.read_to_string(&mut buf).await.at(pidfile)?;
+                        if match fs::read_to_string(&pidfile).await {
+                            Ok(buf) => {
                                 !buf.is_empty() // assume pidfile is still being written if empty //TODO check timestamp
                                 && !pid_exists(buf.trim().parse()?)
                             }
@@ -148,16 +133,14 @@ impl DirLock {
             match std::fs::create_dir(&path) {
                 Ok(()) => {
                     let pidfile = path.join("pid");
-                    writeln!(SyncFile::create(&pidfile).at(&pidfile)?, "{}", std::process::id()).at(pidfile)?;
+                    std::fs::write(&pidfile, format!("{}\n", std::process::id())).at(pidfile)?;
                     return Ok(Self(path))
                 }
                 Err(e) => match e.kind() {
                     io::ErrorKind::AlreadyExists => {
                         let pidfile = path.join("pid");
-                        if match SyncFile::open(&pidfile) {
-                            Ok(mut f) => {
-                                let mut buf = String::default();
-                                f.read_to_string(&mut buf).at(pidfile)?;
+                        if match std::fs::read_to_string(&pidfile) {
+                            Ok(buf) => {
                                 !buf.is_empty() // assume pidfile is still being written if empty //TODO check timestamp
                                 && !pid_exists(buf.trim().parse()?)
                             }
