@@ -11,15 +11,19 @@ repository = "https://github.com/fenhl/rust-dir-lock"
 [features]
 default = ["tokio"]
 
+[lints.rust]
+missing_docs = "deny"
+rust_2018_idioms = "deny"
+unsafe_code = "forbid"
+unused = "deny"
+unused_crate_dependencies = "deny"
+unused_import_braces = "deny"
+unused_lifetimes = "deny"
+unused_qualifications = "deny"
+warnings = "deny"
+
 [dependencies]
+async-std = { version = "1", optional = true }
 sysinfo = { version = "0.33.1", default-features = false, features = ["system"] }
 thiserror = "1"
-
-[dependencies.async-std]
-version = "1"
-optional = true
-
-[dependencies.tokio]
-version = "1"
-optional = true
-features = ["fs", "io-util", "rt-multi-thread", "time"]
+tokio = { version = "1", features = ["fs", "io-util", "rt-multi-thread", "time"], optional = true }
