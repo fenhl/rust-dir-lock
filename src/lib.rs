@@ -1,14 +1,4 @@
 //! This is `dir-lock`, a library crate providing the type [`DirLock`], which is a simple file-system-based mutex.
-//!
-//! # Features
-//!
-//! The following feature is enabled by default:
-//!
-//! * `tokio`: Uses the [`tokio`](https://docs.rs/tokio) runtime for async operations.
-//!
-//! The following features can be enabled via Cargo:
-//!
-//! * `async-std`: Uses the [`async-std`](https://docs.rs/async-std) runtime for async operations. The `tokio` feature should be disabled when using this feature.
 
 use {
     std::{
@@ -29,14 +19,10 @@ use {
         ProcessesToUpdate,
     },
     thiserror::Error,
-};
-#[cfg(feature = "async-std")] use async_std::{
-    fs,
-    task::sleep,
-};
-#[cfg(feature = "tokio")] use tokio::{
-    fs,
-    time::sleep,
+    tokio::{
+        fs,
+        time::sleep,
+    },
 };
 
 /// A simple file-system-based mutex.
