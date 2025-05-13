@@ -160,6 +160,11 @@ impl DirLock {
         }
     }
 
+    /// Return the contained Path.
+    pub fn path(&self) -> &Path {
+        self.0.as_path()
+    }
+
     /// Unlocks this lock without blocking the thread.
     pub async fn drop_async(self) -> Result<(), Error> {
         self.clean_up().await?;
